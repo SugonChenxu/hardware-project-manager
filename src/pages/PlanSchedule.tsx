@@ -14,7 +14,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import zhCN from 'antd/locale/zh_CN';
 import * as XLSX from 'xlsx';
-import { usePlanStore } from '../store/usePlanStore';
+import usePlanStore from '../store/usePlanStore';
 import { useProjectStore } from '../store/useProjectStore';
 import { PlanPhase, PlanTemplatePhase, PlanHistory } from '../types';
 import { generateId } from '../utils/storage';
@@ -55,10 +55,10 @@ const PHASE_COLORS: Record<string, string> = {
 const PlanSchedule: React.FC = () => {
   const { currentProjectId, projects } = useProjectStore();
   const {
-    phases, history,
+    phases, history, isDirty,
     importTemplate, generateFromTemplate, getByProject,
     addPhase, addPhaseAfter, removePhase, updatePhaseDate, updatePhaseTaskName, updatePhaseDescription,
-    toggleLockStart, toggleLockEnd, toggleLink, confirmSave,
+    toggleLockStart, toggleLockEnd, toggleLink, confirmSave, discardChanges,
     refreshStatuses, detectParallelAndCritical,
     loadHistory, getHistoryByProject,
     addPhaseGroup, removePhaseGroup, updatePhaseGroupName,
@@ -328,7 +328,7 @@ const PlanSchedule: React.FC = () => {
     let currentGroup = '';
     let groupStartRow = 1;
 
-    projectPhases.forEach((p, rowIdx) => {
+    projectPhases.forEach((p: PlanPhase, rowIdx: number) => {
       const r = rowIdx + 1;
 
       // 跟踪同阶段合并范围
@@ -438,8 +438,8 @@ const PlanSchedule: React.FC = () => {
 
     // 查找同级别上一节点的结束时间（用于快捷选择）
     // 子任务 → 上一兄弟；顶层/父任务 → 上一顶层节点
-    const projectPhasesSorted = projectPhases.sort((a, b) => a.sortOrder - b.sortOrder);
-    const currentIdx = projectPhasesSorted.findIndex((p) => p.id === phase.id);
+    const projectPhasesSorted = projectPhases.sort((a: PlanPhase, b: PlanPhase) => a.sortOrder - b.sortOrder);
+    const currentIdx = projectPhasesSorted.findIndex((p: PlanPhase) => p.id === phase.id);
     const prevLinkedEndDate = (() => {
       if (currentIdx <= 0) return '';
       if (phase.parentId) {
@@ -886,6 +886,37 @@ const PlanSchedule: React.FC = () => {
 
   return (
     <div>
+      <style>
+        {`
+          .plan-completed-row {
+            opacity: 0.45;
+          }
+          .plan-completed-row:hover > td {
+            opacity: 0.7;
+          }
+        `}
+      </style>
+      {/* ── 未保存提示 ── */}
+      {isDirty && (
+        <Alert
+          type="warning"
+          message="有未保存的修改"
+          description="请点击「确认保存」保存修改，或点击「撤销」丢弃修改"
+          showIcon
+          style={{ marginBottom: 16 }}
+          action={
+            <Space>
+              <Button size="small" onClick={discardChanges}>
+                撤销
+              </Button>
+              <Button size="small" type="primary" onClick={() => currentProjectId && confirmSave(currentProjectId)}>
+                确认保存
+              </Button>
+            </Space>
+          }
+        />
+      )}
+
       {/* ── 工具栏 ── */}
       <Card size="small" style={{ marginBottom: 16 }}>
         <Row gutter={[12, 8]} align="middle">
@@ -954,27 +985,11 @@ const PlanSchedule: React.FC = () => {
               {projectPhases.length > 0 && (
                 <Button
                   type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => {
-                    addPhase(currentProjectId, {
-                      projectId: currentProjectId,
-                      phaseGroup: '计划阶段',
-                      taskName: '新任务',
-                      startDate: dayjs().format('YYYY-MM-DD'),
-                      endDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),
-                      duration: 7,
-                      lockStart: false,
-                      lockEnd: false,
-                      linked: true,
-                      isCriticalPath: false,
-                      isParallel: false,
-                      parallelGroup: '',
-                      status: 'upcoming',
-                    });
-                    message.success('已添加新任务节点');
-                  }}
+                  icon={<SaveOutlined />}
+                  onClick={() => currentProjectId && confirmSave(currentProjectId)}
+                  disabled={!isDirty}
                 >
-                  添加任务
+                  确认保存
                 </Button>
               )}
             </Space>
@@ -992,7 +1007,13 @@ const PlanSchedule: React.FC = () => {
             pagination={false}
             bordered
             indentSize={0}
-            rowClassName={(r: any) => r._rowType === 'group' ? 'plan-group-row' : r._isChild ? 'plan-child-row' : ''}
+            rowClassName={(r: any) => {
+              const classes = [];
+              if (r._rowType === 'group') classes.push('plan-group-row');
+              else if (r._isChild) classes.push('plan-child-row');
+              if (r.status === 'completed') classes.push('plan-completed-row');
+              return classes.join(' ');
+            }}
             expandable={{
               expandedRowKeys: Array.from(expandedParents),
               onExpand: (expanded, record: any) => {
@@ -1042,16 +1063,13 @@ const PlanSchedule: React.FC = () => {
               render={(val, record: any) => {
                 if (record._rowType === 'group') return null;
                 return (
-                  <Switch
-                    size="small"
-                    checked={record.isCriticalPath}
-                    onChange={() => {
-                      const phases = usePlanStore.getState().phases.map(p =>
-                        p.id === record.id ? { ...p, isCriticalPath: !p.isCriticalPath } : p
-                      );
-                      usePlanStore.setState({ phases });
-                    }}
-                  />
+                  <div style={{ textAlign: 'center' }}>
+                    {record.isCriticalPath ? (
+                      <Tag color="red">★ 关键</Tag>
+                    ) : (
+                      <span style={{ color: '#ccc' }}>-</span>
+                    )}
+                  </div>
                 );
               }}
             />

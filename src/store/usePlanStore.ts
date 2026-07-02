@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { message } from 'antd';
 import { PlanPhase, PlanTemplate, PlanTemplatePhase, PlanHistory } from '../types';
 import { generateId } from '../utils/storage';
 import dayjs from 'dayjs';
@@ -20,11 +21,45 @@ export function computeStatusFull(startDate: string, endDate: string): 'complete
   return 'upcoming';
 }
 
+// ── 默认模板（M1~M5 里程碑）──
+const DEFAULT_TEMPLATE_PHASES: PlanTemplatePhase[] = [
+  { phaseGroup: 'M1预研阶段', taskName: 'L1预研', startDate: '2026-01-01', endDate: '2026-01-08', duration: 7, parallelGroup: 'L1', linked: true },
+  { phaseGroup: 'M1预研阶段', taskName: 'L2详细需求', startDate: '2026-01-08', endDate: '2026-01-15', duration: 7, parallelGroup: 'L2', linked: true },
+  { phaseGroup: 'M1预研阶段', taskName: 'L3立项筹备', startDate: '2026-01-15', endDate: '2026-01-22', duration: 7, parallelGroup: 'L3', linked: true },
+  { phaseGroup: 'M2计划阶段', taskName: 'L4概要设计', startDate: '2026-01-22', endDate: '2026-01-29', duration: 7, parallelGroup: 'L4', linked: true },
+  { phaseGroup: 'M2计划阶段', taskName: 'L5开发计划', startDate: '2026-01-22', endDate: '2026-01-29', duration: 7, parallelGroup: 'L5', linked: false },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-1主板原理图', startDate: '2026-01-29', endDate: '2026-02-18', duration: 20, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-2 Layout', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-3 PCB洗板', startDate: '2026-01-29', endDate: '2026-03-05', duration: 35, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-4 PCBA打板', startDate: '2026-01-29', endDate: '2026-02-05', duration: 7, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-5 结构设计&投样', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-6 散热设计&投样', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-7 线缆设计&投样', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-8 BIOS详细设计', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-9 BMC详细设计', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L7 Power On', startDate: '2026-03-05', endDate: '2026-03-10', duration: 5, parallelGroup: 'L7', linked: true },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L8 EVT', startDate: '2026-03-10', endDate: '2026-04-09', duration: 30, parallelGroup: 'L8', linked: true },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-1 组装评审', startDate: '2026-04-09', endDate: '2026-04-11', duration: 2, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-2 PI测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-3 SIV测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-4 SIT测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-5 可靠性测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-6 散热测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-7 A02设计', startDate: '2026-04-09', endDate: '2026-04-19', duration: 10, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-8 A02洗板&打板', startDate: '2026-04-09', endDate: '2026-05-19', duration: 40, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-9 Debug', startDate: '2026-04-09', endDate: '2026-04-23', duration: 14, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
+  { phaseGroup: 'M4试制阶段', taskName: 'L10 批量测试', startDate: '2026-05-19', endDate: '2026-06-18', duration: 30, parallelGroup: 'L10', linked: true },
+  { phaseGroup: 'M5新品导入阶段', taskName: 'L11 NPI导入', startDate: '2026-06-18', endDate: '2026-07-18', duration: 30, parallelGroup: 'L11', linked: true },
+  { phaseGroup: 'M5新品导入阶段', taskName: 'L12 直通率爬坡', startDate: '2026-07-18', endDate: '2026-10-16', duration: 90, parallelGroup: 'L12', linked: true },
+];
+
 // ── Store 接口 ──
 interface PlanStore {
   template: PlanTemplate | null;
   phases: PlanPhase[];
   history: PlanHistory[];
+  isDirty: boolean;
+  savedPhases: PlanPhase[];
   importTemplate: (name: string, phases: PlanTemplatePhase[]) => void;
   getTemplate: () => PlanTemplate | null;
   generateFromTemplate: (projectId: string, projectStartDate: string) => void;
@@ -42,6 +77,7 @@ interface PlanStore {
   removePhaseGroup: (projectId: string, phaseGroupName: string) => void;
   updatePhaseGroupName: (projectId: string, oldName: string, newName: string) => void;
   confirmSave: (projectId: string) => void;
+  discardChanges: () => void;
   saveHistory: (projectId: string, label: string) => void;
   loadHistory: (historyId: string) => string | null;
   getHistoryByProject: (projectId: string) => PlanHistory[];
@@ -50,82 +86,22 @@ interface PlanStore {
   load: () => Promise<void>;
 }
 
-// ── 默认模板 ──
-const DEFAULT_TEMPLATE_PHASES: PlanTemplatePhase[] = [
-  { phaseGroup: 'M1预研阶段', taskName: 'L1预研', startDate: '2026-01-01', endDate: '2026-01-08', duration: 7, parallelGroup: 'M1预研阶段', linked: true },
-  { phaseGroup: 'M1预研阶段', taskName: 'L2详细需求', startDate: '2026-01-08', endDate: '2026-01-15', duration: 7, parallelGroup: 'M1预研阶段', linked: true },
-  { phaseGroup: 'M1预研阶段', taskName: 'L3立项筹备', startDate: '2026-01-15', endDate: '2026-01-22', duration: 7, parallelGroup: 'M1预研阶段', linked: true },
-  { phaseGroup: 'M2计划阶段', taskName: 'L4概要设计', startDate: '2026-01-22', endDate: '2026-01-29', duration: 7, parallelGroup: 'M2计划阶段', linked: true },
-  { phaseGroup: 'M2计划阶段', taskName: 'L5开发计划', startDate: '2026-01-22', endDate: '2026-01-29', duration: 7, parallelGroup: 'M2计划阶段', linked: false },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6详细设计', startDate: '2026-01-29', endDate: '2026-03-05', duration: 35, parallelGroup: 'M3研发测试阶段', linked: true },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-1主板原理图', startDate: '2026-01-29', endDate: '2026-02-18', duration: 20, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L6详细设计' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-2Layout', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L6详细设计' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-3PCB洗板', startDate: '2026-01-29', endDate: '2026-03-05', duration: 35, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L6详细设计' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-4PCBA打板', startDate: '2026-01-29', endDate: '2026-02-05', duration: 7, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L6详细设计' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-5结构设计&投样', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L6详细设计' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-6散热设计&投样', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L6详细设计' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-7线缆设计&投样', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L6详细设计' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-8BIOS详细设计', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L6详细设计' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L6-9BMC详细设计', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L6详细设计' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L7Power On', startDate: '2026-03-05', endDate: '2026-03-10', duration: 5, parallelGroup: 'M3研发测试阶段', linked: true },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L8EVT', startDate: '2026-03-10', endDate: '2026-04-09', duration: 30, parallelGroup: 'M3研发测试阶段', linked: true },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9DVT', startDate: '2026-04-09', endDate: '2026-05-19', duration: 40, parallelGroup: 'M3研发测试阶段', linked: true },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-1组装评审', startDate: '2026-04-09', endDate: '2026-04-11', duration: 2, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L9DVT' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-2PI测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L9DVT' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-3SIV测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L9DVT' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-4SIT测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L9DVT' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-5可靠性测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L9DVT' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-6散热测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L9DVT' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-7A02设计', startDate: '2026-04-09', endDate: '2026-04-19', duration: 10, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L9DVT' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-8A02洗板&打板', startDate: '2026-04-09', endDate: '2026-05-19', duration: 40, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L9DVT' },
-  { phaseGroup: 'M3研发测试阶段', taskName: 'L9-9Debug', startDate: '2026-04-09', endDate: '2026-04-23', duration: 14, parallelGroup: 'M3研发测试阶段', linked: false, parentTaskName: 'L9DVT' },
-  { phaseGroup: 'M4试制阶段', taskName: 'L10批量测试', startDate: '2026-05-19', endDate: '2026-06-18', duration: 30, parallelGroup: 'M4试制阶段', linked: true },
-  { phaseGroup: 'M5新品导入阶段', taskName: 'L11NPI导入', startDate: '2026-06-18', endDate: '2026-07-18', duration: 30, parallelGroup: 'M5新品导入阶段', linked: true },
-  { phaseGroup: 'M5新品导入阶段', taskName: 'L12直通率爬坡', startDate: '2026-07-18', endDate: '2026-10-16', duration: 90, parallelGroup: 'M5新品导入阶段', linked: true },
-];
-
-// ── 创建 Store ──
-export const usePlanStore = create<PlanStore>((set, get) => ({
+const usePlanStore = create<PlanStore>((set, get) => ({
   template: null,
   phases: [],
   history: [],
-
-  // 从 IndexedDB 加载数据（如果为空，尝试从 localStorage 迁移）
-  load: async () => {
-    try {
-      // 先尝试从 IndexedDB 加载
-      let phases = await dbGetPlanPhases();
-      
-      // 如果 IndexedDB 为空，尝试从 localStorage 迁移
-      if (!phases || phases.length === 0) {
-        console.log('📦 IndexedDB 为空，尝试从 localStorage 迁移数据...');
-        await migrateFromLocalStorage();
-        phases = await dbGetPlanPhases();
-      }
-      
-      if (phases && phases.length > 0) {
-        set({ phases });
-        console.log('✅ 计划数据已恢复，共', phases.length, '个任务');
-      } else {
-        console.log('ℹ️ 暂无计划数据');
-      }
-    } catch (e) {
-      console.error('❌ 加载计划数据失败:', e);
-    }
-  },
+  isDirty: false,
+  savedPhases: [],
 
   // 导入模板
   importTemplate: (name, phases) => {
-    set({
-      template: {
-        name,
-        phases: JSON.parse(JSON.stringify(phases)),
-        importedAt: new Date().toISOString(),
-      },
+    set({ 
+      template: { name, phases, importedAt: new Date().toISOString() },
+      isDirty: true 
     });
   },
 
-  // 获取当前模板
+  // 获取模板
   getTemplate: () => {
     return get().template;
   },
@@ -145,16 +121,6 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
 
       const startDate = fmt(baseDate.add(startOffset, 'day'));
       const endDate = fmt(baseDate.add(startOffset + duration, 'day'));
-
-      // 查找父任务 ID
-      let parentId: string | undefined = undefined;
-      if (tp.parentTaskName) {
-        const parentPhase = sourcePhases.find(p => p.taskName === tp.parentTaskName);
-        if (parentPhase) {
-          const parentIndex = sourcePhases.indexOf(parentPhase);
-          // 父任务会在前面创建，所以这里先用 taskName 关联，后面再补 id
-        }
-      }
 
       return {
         id: generateId(),
@@ -187,9 +153,8 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       }
     });
 
-    set({ phases: newPhases });
-    // 自动保存
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
+    // 不自动保存，等待用户点击"确认保存"
   },
 
   // 获取指定项目的计划
@@ -210,8 +175,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       status: computeStatusFull(phase.startDate, phase.endDate),
     };
     const newPhases = [...phases, newPhase];
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
   // 在指定任务后插入新任务（继承 parentId）
@@ -237,26 +201,28 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       parallelGroup: afterPhase.parallelGroup,
       status: 'upcoming',
       sortOrder: afterIndex + 1,
-      parentId: afterPhase.parentId, // 继承父任务 ID
+      parentId: afterPhase.parentId,
       description: '',
     };
 
     const newPhases = [...phases];
     newPhases.splice(afterIndex + 1, 0, newPhase);
-    // 重新排序
     newPhases.forEach((p, i) => p.sortOrder = i);
 
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
   // 删除阶段
   removePhase: (id) => {
     const { phases } = get();
+    const phaseToRemove = phases.find(p => p.id === id);
+    if (phaseToRemove?.lockEnd) {
+      message.warning('该任务已锁定，无法删除');
+      return;
+    }
     const newPhases = phases.filter(p => p.id !== id && p.parentId !== id);
     newPhases.forEach((p, i) => p.sortOrder = i);
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
   // 更新阶段日期
@@ -277,60 +243,53 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
           updated.duration = daysBetween(updated.startDate, value as string);
         }
       } else if (field === 'duration') {
-        updated.duration = value as number;
         if (!p.lockEnd) {
+          updated.duration = value as number;
           updated.endDate = fmt(dayjs(p.startDate).add(value as number, 'day'));
         }
       }
       updated.status = computeStatusFull(updated.startDate, updated.endDate);
       return updated;
     });
-
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
   // 更新任务名称
   updatePhaseTaskName: (id, taskName) => {
     const { phases } = get();
     const newPhases = phases.map(p => p.id === id ? { ...p, taskName } : p);
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
   // 更新说明
   updatePhaseDescription: (id, description) => {
     const { phases } = get();
     const newPhases = phases.map(p => p.id === id ? { ...p, description } : p);
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
-  // 切换锁定开始日期
+  // 切换开始日期锁定
   toggleLockStart: (id) => {
     const { phases } = get();
     const newPhases = phases.map(p => p.id === id ? { ...p, lockStart: !p.lockStart } : p);
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
-  // 切换锁定结束日期
+  // 切换结束日期锁定
   toggleLockEnd: (id) => {
     const { phases } = get();
     const newPhases = phases.map(p => p.id === id ? { ...p, lockEnd: !p.lockEnd } : p);
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
-  // 切换关联
+  // 切换任务关联
   toggleLink: (id) => {
     const { phases } = get();
     const newPhases = phases.map(p => p.id === id ? { ...p, linked: !p.linked } : p);
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
-  // 添加阶段分组
+  // 添加大阶段
   addPhaseGroup: (projectId, phaseGroupName) => {
     const { phases } = get();
     const newPhase: PlanPhase = {
@@ -351,47 +310,46 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       sortOrder: phases.length,
       description: '',
     };
-    const newPhases = [...phases, newPhase];
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: [...phases, newPhase], isDirty: true });
   },
 
-  // 删除阶段分组
+  // 删除大阶段
   removePhaseGroup: (projectId, phaseGroupName) => {
     const { phases } = get();
     const newPhases = phases.filter(p => !(p.projectId === projectId && p.phaseGroup === phaseGroupName));
-    newPhases.forEach((p, i) => p.sortOrder = i);
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
-  // 更新阶段分组名称
+  // 重命名大阶段
   updatePhaseGroupName: (projectId, oldName, newName) => {
     const { phases } = get();
     const newPhases = phases.map(p => 
       p.projectId === projectId && p.phaseGroup === oldName 
-        ? { ...p, phaseGroup: newName, parallelGroup: newName }
+        ? { ...p, phaseGroup: newName } 
         : p
     );
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
-  // 保存当前计划（创建版本历史）
+  // 确认保存
   confirmSave: (projectId) => {
-    const { phases, history } = get();
-    const projectPhases = phases.filter(p => p.projectId === projectId);
-    const version = history.filter(h => h.projectId === projectId).length + 1;
-    const newHistory: PlanHistory = {
-      id: generateId(),
-      projectId,
-      version,
-      label: `V${version}`,
-      snapshot: JSON.parse(JSON.stringify(projectPhases)),
-      createdAt: new Date().toISOString(),
-    };
-    const newHistoryList = [...history, newHistory];
-    set({ history: newHistoryList });
+    const { phases, saveHistory } = get();
+    // 创建历史版本
+    saveHistory(projectId, `版本 ${new Date().toLocaleString('zh-CN')}`);
+    // 保存到 IndexedDB
+    dbSetPlanPhases(phases);
+    // 标记干净
+    set({ isDirty: false, savedPhases: JSON.parse(JSON.stringify(phases)) });
+    message.success('保存成功');
+  },
+
+  // 丢弃修改
+  discardChanges: () => {
+    const { savedPhases } = get();
+    if (savedPhases.length > 0) {
+      set({ phases: JSON.parse(JSON.stringify(savedPhases)), isDirty: false });
+      message.info('已撤销修改');
+    }
   },
 
   // 保存历史版本
@@ -430,8 +388,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       ...p,
       status: computeStatusFull(p.startDate, p.endDate),
     }));
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
   },
 
   // 检测并行任务和关键路径
@@ -568,14 +525,32 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       }
     }
 
-    set({ phases: newPhases });
-    dbSetPlanPhases(newPhases);
+    set({ phases: newPhases, isDirty: true });
+  },
+
+  // 从 IndexedDB 加载数据
+  load: async () => {
+    try {
+      // 先尝试从 localStorage 迁移
+      await migrateFromLocalStorage();
+      
+      // 从 IndexedDB 加载
+      const phases = await dbGetPlanPhases();
+      if (phases && phases.length > 0) {
+        set({ phases, savedPhases: JSON.parse(JSON.stringify(phases)), isDirty: false });
+        console.log('✅ 计划数据已从 IndexedDB 恢复，共', phases.length, '个任务');
+      }
+    } catch (e) {
+      console.error('❌ 加载计划数据失败:', e);
+    }
   },
 }));
 
-// 自动保存：每次 state 变化都写入 IndexedDB
+// 自动保存：每次 state 变化都写入 IndexedDB（仅当 isDirty=false 时，即已保存的状态）
 usePlanStore.subscribe((state) => {
-  if (state.phases.length > 0) {
+  if (state.phases.length > 0 && !state.isDirty) {
     dbSetPlanPhases(state.phases);
   }
 });
+
+export default usePlanStore;
