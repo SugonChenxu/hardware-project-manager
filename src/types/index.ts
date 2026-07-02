@@ -88,12 +88,22 @@ export interface MaterialItem {
 export interface MeetingNote {
   id: string;
   projectId: string;
-  title: string;
-  date: string;
-  attendees: string[];
-  content: string; // markdown
-  decisions: string[];
-  actionItems: ActionItem[];
+  meetingId: string;          // 腾讯会议 ID
+  meetingUrl: string;         // 腾讯会议链接
+  title: string;              // 会议标题
+  date: string;               // 会议日期 YYYY-MM-DD
+  attendees: string[];        // 参会人员
+  content: string;            // 会议内容（Markdown）
+  aiTranscript: string;       // AI 原始记录（Markdown）
+  aiSummary: {                // AI 自动总结
+    progress: string[];
+    issues: string[];
+    plans: string[];
+  } | null;
+  decisions: string[];       // 会议决策
+  actionItems: ActionItem[];  // 行动项
+  weeklyReport: string;       // 生成的周报内容
+  weeklyReportGenerated: boolean;
   createdAt: string;
   updatedAt: string;
 }

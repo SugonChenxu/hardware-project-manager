@@ -1,256 +1,323 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Card, Button, Modal, Input, DatePicker, Select, List, Tag, Space, Popconfirm, Empty,
+  Card, Button, Input, Modal, Space, message, Empty, Tag, Typography, Tooltip,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
-import ReactMarkdown from 'react-markdown';
-import dayjs from 'dayjs';
+import {
+  PlusOutlined, LinkOutlined, FileTextOutlined, FileSearchOutlined, 
+  DeleteOutlined, FileTextTwoTone, ExportOutlined,
+} from '@ant-design/icons';
+import useMeetingNoteStore from '../store/useMeetingNoteStore';
 import { useProjectStore } from '../store/useProjectStore';
-import { useMeetingStore } from '../store/useMeetingStore';
-import { MeetingNote, ActionItem } from '../types';
-import { formatDate, generateId } from '../utils/storage';
+import { MeetingNote } from '../types';
+
+const { TextArea } = Input;
+const { Paragraph, Title } = Typography;
 
 const MeetingNotes: React.FC = () => {
   const { currentProjectId } = useProjectStore();
-  const { notes, load, add, update, remove } = useMeetingStore();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState<MeetingNote | null>(null);
-  const [previewMode, setPreviewMode] = useState(false);
+  const {
+    notes, load, getByProject, addNote, updateNote, deleteNote,
+    importFromTencentMeeting, generateWeeklyReport,
+  } = useMeetingNoteStore();
 
-  const [form, setForm] = useState({
-    title: '',
-    date: formatDate(new Date().toISOString()),
-    attendees: [] as string[],
-    content: '',
-    decisions: [] as string[],
-    actionItems: [] as ActionItem[],
-  });
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [meetingIdInput, setMeetingIdInput] = useState('');
+  const [viewTranscriptOpen, setViewTranscriptOpen] = useState(false);
+  const [viewSummaryOpen, setViewSummaryOpen] = useState(false);
+  const [viewReportOpen, setViewReportOpen] = useState(false);
+  const [selectedNote, setSelectedNote] = useState<MeetingNote | null>(null);
+  const [weeklyReport, setWeeklyReport] = useState('');
 
   useEffect(() => {
     load();
   }, []);
 
-  const projectNotes = notes.filter((n) => n.projectId === currentProjectId);
+  const projectNotes = currentProjectId ? getByProject(currentProjectId) : [];
 
-  const handleSave = () => {
-    if (!form.title || !currentProjectId) return;
-    if (editingNote) {
-      update(editingNote.id, form);
-    } else {
-      add({ ...form, projectId: currentProjectId });
+  // 导入腾讯会议
+  const handleImport = async () => {
+    if (!meetingIdInput.trim()) {
+      message.warning('请输入会议 ID');
+      return;
     }
-    setModalOpen(false);
-    setEditingNote(null);
-    setForm({ title: '', date: formatDate(new Date().toISOString()), attendees: [], content: '', decisions: [], actionItems: [] });
-    setPreviewMode(false);
+    if (!currentProjectId) {
+      message.warning('请先选择项目');
+      return;
+    }
+
+    try {
+      await importFromTencentMeeting(currentProjectId, meetingIdInput.trim());
+      message.success('导入成功');
+      setImportModalOpen(false);
+      setMeetingIdInput('');
+    } catch (e) {
+      message.error('导入失败');
+    }
   };
 
-  const openEdit = (note: MeetingNote) => {
-    setEditingNote(note);
-    setForm({
-      title: note.title,
-      date: note.date,
-      attendees: note.attendees,
-      content: note.content,
-      decisions: note.decisions,
-      actionItems: note.actionItems,
-    });
-    setPreviewMode(false);
-    setModalOpen(true);
+  // 查看原始记录
+  const handleViewTranscript = (note: MeetingNote) => {
+    setSelectedNote(note);
+    setViewTranscriptOpen(true);
   };
 
-  const addActionItem = () => {
-    setForm({
-      ...form,
-      actionItems: [...form.actionItems, { id: generateId(), description: '', assignee: '', dueDate: '', completed: false }],
-    });
+  // 查看 AI 总结
+  const handleViewSummary = (note: MeetingNote) => {
+    setSelectedNote(note);
+    setViewSummaryOpen(true);
   };
 
-  const updateActionItem = (idx: number, data: Partial<ActionItem>) => {
-    const items = [...form.actionItems];
-    items[idx] = { ...items[idx], ...data };
-    setForm({ ...form, actionItems: items });
-  };
+  // 生成周报
+  const handleGenerateReport = () => {
+    if (!currentProjectId) {
+      message.warning('请先选择项目');
+      return;
+    }
 
-  const removeActionItem = (idx: number) => {
-    setForm({ ...form, actionItems: form.actionItems.filter((_, i) => i !== idx) });
-  };
+    // 计算本周日期范围
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(today.getDate() - today.getDay() + 1); // 本周一
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6); // 本周日
 
-  const getAttendeeOptions = () => {
-    const allAttendees = new Set<string>();
-    notes.forEach((n) => n.attendees.forEach((a) => allAttendees.add(a)));
-    return Array.from(allAttendees).map((a) => ({ label: a, value: a }));
+    const report = generateWeeklyReport(
+      currentProjectId,
+      start.toISOString().split('T')[0],
+      end.toISOString().split('T')[0]
+    );
+
+    setWeeklyReport(report);
+    setViewReportOpen(true);
   };
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>会议纪要</h2>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => { setEditingNote(null); setModalOpen(true); }}
-        >
-          新建纪要
-        </Button>
-      </div>
+      {/* 工具栏 */}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Space>
+          <Button
+            type="primary"
+            icon={<LinkOutlined />}
+            onClick={() => setImportModalOpen(true)}
+          >
+            导入会议链接
+          </Button>
+          <Button
+            icon={<FileTextOutlined />}
+            onClick={handleGenerateReport}
+            disabled={projectNotes.length === 0}
+          >
+            生成周报
+          </Button>
+        </Space>
+      </Card>
 
+      {/* 会议卡片列表 */}
       {projectNotes.length === 0 ? (
-        <Empty description="暂无会议纪要" />
+        <Empty description="暂无会议记录，点击「导入会议链接」开始" />
       ) : (
-        <List
-          dataSource={projectNotes}
-          renderItem={(note) => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: 16 }}>
+          {projectNotes.map((note: MeetingNote) => (
             <Card
+              key={note.id}
               size="small"
-              style={{ marginBottom: 12 }}
               title={
-                <Space>
-                  <span>{note.title}</span>
-                  <Tag>{note.date}</Tag>
-                  <Tag color="blue">{note.attendees.length} 人参会</Tag>
-                </Space>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>
+                    📅 {note.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
+                    {note.date}
+                  </div>
+                </div>
               }
               extra={
-                <Space>
-                  <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(note)}>
-                    编辑
-                  </Button>
-                  <Popconfirm title="确定删除？" onConfirm={() => remove(note.id)}>
-                    <Button size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                </Space>
+                <Tooltip title="删除">
+                  <Button
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => {
+                      deleteNote(note.id);
+                      message.success('已删除');
+                    }}
+                  />
+                </Tooltip>
               }
             >
-              <div style={{ maxHeight: 300, overflow: 'auto', fontSize: 13, lineHeight: 1.8 }}>
-                <ReactMarkdown>{note.content}</ReactMarkdown>
+              {/* 会议链接 */}
+              <div style={{ marginBottom: 8 }}>
+                <LinkOutlined style={{ marginRight: 4 }} />
+                <a href={note.meetingUrl} target="_blank" rel="noopener noreferrer">
+                  腾讯会议链接
+                </a>
               </div>
-              {note.decisions.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <Tag color="green" style={{ marginBottom: 4 }}>会议决议</Tag>
-                  <ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>
-                    {note.decisions.map((d, i) => (
-                      <li key={i} style={{ fontSize: 13 }}>{d}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {note.actionItems.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <Tag color="orange" style={{ marginBottom: 4 }}>待办事项</Tag>
-                  {note.actionItems.map((a) => (
-                    <div key={a.id} style={{ fontSize: 13, padding: '2px 0', display: 'flex', gap: 8 }}>
-                      <span>{a.completed ? '✅' : '⬜'}</span>
-                      <span>{a.description}</span>
-                      <Tag style={{ fontSize: 11 }}>{a.assignee}</Tag>
-                      {a.dueDate && <span style={{ color: '#999' }}>{a.dueDate}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          )}
-        />
-      )}
 
-      {/* Create/Edit Modal */}
-      <Modal
-        title={editingNote ? '编辑会议纪要' : '新建会议纪要'}
-        open={modalOpen}
-        onOk={handleSave}
-        onCancel={() => { setModalOpen(false); setEditingNote(null); setPreviewMode(false); }}
-        okText="保存"
-        cancelText="取消"
-        width={800}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 16 }}>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <Input
-              placeholder="会议标题"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              style={{ flex: 2 }}
-            />
-            <DatePicker
-              value={dayjs(form.date)}
-              onChange={(d) => d && setForm({ ...form, date: d.format('YYYY-MM-DD') })}
-              style={{ flex: 1 }}
-            />
-          </div>
-          <Select
-            mode="tags"
-            placeholder="参会人员（输入后回车添加）"
-            value={form.attendees}
-            onChange={(v) => setForm({ ...form, attendees: v })}
-            options={getAttendeeOptions()}
-          />
-          <div>
-            <div style={{ marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: '#666' }}>会议内容 (支持 Markdown)</span>
-              <Button size="small" onClick={() => setPreviewMode(!previewMode)}>
-                {previewMode ? '编辑' : '预览'}
-              </Button>
-            </div>
-            {previewMode ? (
-              <div
-                style={{
-                  minHeight: 200,
-                  border: '1px solid #d9d9d9',
-                  borderRadius: 6,
-                  padding: 12,
-                  fontSize: 13,
-                  lineHeight: 1.8,
-                  overflow: 'auto',
-                  maxHeight: 400,
-                }}
-              >
-                <ReactMarkdown>{form.content}</ReactMarkdown>
+              {/* 参会人员 */}
+              <div style={{ marginBottom: 8 }}>
+                <strong>参会人员：</strong>
+                {note.attendees.join('、')}
               </div>
-            ) : (
-              <Input.TextArea
-                rows={10}
-                value={form.content}
-                onChange={(e) => setForm({ ...form, content: e.target.value })}
-                placeholder="## 会议议题&#10;&#10;1. ...&#10;&#10;## 讨论内容&#10;&#10;...&#10;&#10;## 结论&#10;&#10;..."
-              />
-            )}
-          </div>
 
-          {/* Action Items */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: '#666' }}>待办事项</span>
-              <Button size="small" type="dashed" onClick={addActionItem}>+ 添加</Button>
-            </div>
-            {form.actionItems.map((item, idx) => (
-              <div key={item.id} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                <Input
-                  placeholder="描述"
-                  value={item.description}
-                  onChange={(e) => updateActionItem(idx, { description: e.target.value })}
-                  style={{ flex: 2 }}
-                />
-                <Input
-                  placeholder="负责人"
-                  value={item.assignee}
-                  onChange={(e) => updateActionItem(idx, { assignee: e.target.value })}
-                  style={{ width: 120 }}
-                />
-                <DatePicker
-                  placeholder="截止日期"
-                  value={item.dueDate ? dayjs(item.dueDate) : null}
-                  onChange={(d) => updateActionItem(idx, { dueDate: d?.format('YYYY-MM-DD') || '' })}
-                  style={{ width: 140 }}
-                />
+              {/* 状态标签 */}
+              <div style={{ marginBottom: 12 }}>
+                {note.aiTranscript && (
+                  <Tag color="blue" icon={<FileTextTwoTone />}>
+                    AI 记录已生成
+                  </Tag>
+                )}
+                {note.aiSummary && (
+                  <Tag color="green">
+                    AI 总结已生成
+                  </Tag>
+                )}
+                {note.weeklyReportGenerated && (
+                  <Tag color="purple">
+                    已生成周报
+                  </Tag>
+                )}
+              </div>
+
+              {/* 操作按钮 */}
+              <Space>
+                {note.aiTranscript && (
+                  <Button
+                    size="small"
+                    icon={<FileTextOutlined />}
+                    onClick={() => handleViewTranscript(note)}
+                  >
+                    查看记录
+                  </Button>
+                )}
+                {note.aiSummary && (
+                  <Button
+                    size="small"
+                    icon={<FileSearchOutlined />}
+                    onClick={() => handleViewSummary(note)}
+                  >
+                    查看总结
+                  </Button>
+                )}
                 <Button
                   size="small"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => removeActionItem(idx)}
-                />
-              </div>
-            ))}
+                  type="primary"
+                  icon={<ExportOutlined />}
+                  onClick={() => {
+                    const report = generateWeeklyReport(
+                      note.projectId,
+                      note.date,
+                      note.date
+                    );
+                    setWeeklyReport(report);
+                    setViewReportOpen(true);
+                  }}
+                >
+                  生成周报
+                </Button>
+              </Space>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* 导入会议链接弹窗 */}
+      <Modal
+        title="导入腾讯会议链接"
+        open={importModalOpen}
+        onOk={handleImport}
+        onCancel={() => {
+          setImportModalOpen(false);
+          setMeetingIdInput('');
+        }}
+        okText="导入"
+        cancelText="取消"
+      >
+        <div style={{ padding: '16px 0' }}>
+          <div style={{ marginBottom: 8 }}>会议 ID 或链接：</div>
+          <Input
+            value={meetingIdInput}
+            onChange={(e) => setMeetingIdInput(e.target.value)}
+            placeholder="输入腾讯会议 ID 或完整链接"
+            onPressEnter={handleImport}
+          />
+          <div style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
+            示例：123-456-789 或 https://meeting.tencent.com/dm/...
           </div>
+        </div>
+      </Modal>
+
+      {/* 查看 AI 原始记录弹窗 */}
+      <Modal
+        title="AI 会议原始记录"
+        open={viewTranscriptOpen}
+        onCancel={() => setViewTranscriptOpen(false)}
+        footer={null}
+        width={800}
+      >
+        {selectedNote && (
+          <div style={{ maxHeight: 600, overflow: 'auto' }}>
+            <Typography>
+              <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
+                {selectedNote.aiTranscript}
+              </Paragraph>
+            </Typography>
+          </div>
+        )}
+      </Modal>
+
+      {/* 查看 AI 总结弹窗 */}
+      <Modal
+        title="AI 会议总结"
+        open={viewSummaryOpen}
+        onCancel={() => setViewSummaryOpen(false)}
+        footer={null}
+        width={600}
+      >
+        {selectedNote && selectedNote.aiSummary && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <Title level={5}>本周进展</Title>
+              <ul>
+                {selectedNote.aiSummary.progress.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Title level={5}>风险与问题</Title>
+              <ul>
+                {selectedNote.aiSummary.issues.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <Title level={5}>下周计划</Title>
+              <ul>
+                {selectedNote.aiSummary.plans.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* 周报预览弹窗 */}
+      <Modal
+        title="项目周报"
+        open={viewReportOpen}
+        onCancel={() => setViewReportOpen(false)}
+        footer={null}
+        width={800}
+      >
+        <div style={{ maxHeight: 600, overflow: 'auto' }}>
+          <Typography>
+            <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
+              {weeklyReport}
+            </Paragraph>
+          </Typography>
         </div>
       </Modal>
     </div>
