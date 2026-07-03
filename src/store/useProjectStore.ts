@@ -20,7 +20,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   load: async () => {
     try {
-      // 先尝试从 IndexedDB 加载
       let projects = await dbGet<Project[]>('projects', []);
       let currentProjectId = await dbGet<string | null>('currentProjectId', null);
       
@@ -32,8 +31,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         currentProjectId = await dbGet<string | null>('currentProjectId', null);
       }
       
+      // 🔧 修复：如果 currentProjectId 无效，自动选择第一个项目
+      if (projects.length > 0) {
+        // 检查 currentProjectId 是否有效
+        const validProject = projects.find(p => p.id === currentProjectId);
+        if (!validProject) {
+          currentProjectId = projects[0].id;
+          console.log('📌 自动选择项目:', projects[0].name, '(ID:', currentProjectId + ')');
+          // 保存选择
+          await dbSet('currentProjectId', currentProjectId);
+        }
+      } else {
+        currentProjectId = null;
+      }
+      
       set({ projects, currentProjectId });
-      console.log('✅ 项目数据已加载，共', projects.length, '个项目');
+      console.log('✅ 项目数据已加载，共', projects.length, '个项目，当前项目:', currentProjectId);
     } catch (e) {
       console.error('❌ 加载项目数据失败:', e);
     }

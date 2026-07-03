@@ -334,13 +334,25 @@ const usePlanStore = create<PlanStore>((set, get) => ({
   // 确认保存
   confirmSave: (projectId) => {
     const { phases, saveHistory } = get();
+    console.log('💾 confirmSave() 被调用');
+    console.log('💾 当前 phases:', phases.length, '个任务');
+    console.log('💾 projectId:', projectId);
+    
     // 创建历史版本
     saveHistory(projectId, `版本 ${new Date().toLocaleString('zh-CN')}`);
+    
     // 保存到 IndexedDB
-    dbSetPlanPhases(phases);
+    console.log('💾 正在调用 dbSetPlanPhases...');
+    dbSetPlanPhases(phases).then(() => {
+      console.log('✅ dbSetPlanPhases 完成');
+    }).catch(e => {
+      console.error('❌ dbSetPlanPhases 失败:', e);
+    });
+    
     // 标记干净
     set({ isDirty: false, savedPhases: JSON.parse(JSON.stringify(phases)) });
     message.success('保存成功');
+    console.log('✅ confirmSave() 完成，isDirty = false');
   },
 
   // 丢弃修改
@@ -531,14 +543,21 @@ const usePlanStore = create<PlanStore>((set, get) => ({
   // 从 IndexedDB 加载数据
   load: async () => {
     try {
+      console.log('📖 usePlanStore.load() 开始加载...');
+      
       // 先尝试从 localStorage 迁移
       await migrateFromLocalStorage();
       
       // 从 IndexedDB 加载
       const phases = await dbGetPlanPhases();
+      console.log('📖 dbGetPlanPhases 返回:', phases ? phases.length + '个任务' : '无数据');
+      
       if (phases && phases.length > 0) {
         set({ phases, savedPhases: JSON.parse(JSON.stringify(phases)), isDirty: false });
         console.log('✅ 计划数据已从 IndexedDB 恢复，共', phases.length, '个任务');
+        console.log('✅ 数据详情:', phases);
+      } else {
+        console.log('⚠️ 计划数据为空，保持默认状态');
       }
     } catch (e) {
       console.error('❌ 加载计划数据失败:', e);

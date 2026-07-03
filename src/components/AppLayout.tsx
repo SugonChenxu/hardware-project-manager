@@ -49,6 +49,8 @@ const AppLayout: React.FC = () => {
     setCurrent,
   } = useProjectStore();
 
+  const currentProjectName = projects.find(p => p.id === currentProjectId)?.name || '未选择项目';
+
   useEffect(() => {
     loadProjects();
   }, []);
