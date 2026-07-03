@@ -1014,26 +1014,15 @@ const PlanSchedule: React.FC = () => {
         )}
       </Card>
 
-      {/* ── 未保存提示 ── */}
-      {isDirty && (
-        <Alert
-          type="warning"
-          message="有未保存的修改"
-          description="请点击「确认保存」保存修改，或点击「撤销」丢弃修改"
-          showIcon
-          style={{ marginBottom: 16 }}
-          action={
-            <Space>
-              <Button size="small" onClick={discardChanges}>
-                撤销
-              </Button>
-              <Button size="small" type="primary" onClick={() => currentProjectId && confirmSave(currentProjectId)}>
-                确认保存
-              </Button>
-            </Space>
-          }
-        />
-      )}
+      {/* ── 自动保存提示 ── */}
+      <Alert
+        type="success"
+        message="自动保存已启用"
+        description="每次修改都会自动保存到浏览器，无需手动保存"
+        showIcon
+        style={{ marginBottom: 16 }}
+        closable
+      />
 
       {/* ── 工具栏 ── */}
       <Card size="small" style={{ marginBottom: 16 }}>
