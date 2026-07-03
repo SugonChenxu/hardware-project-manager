@@ -84,6 +84,7 @@ interface PlanStore {
   refreshStatuses: () => void;
   detectParallelAndCritical: () => void;
   load: () => Promise<void>;
+  debug: () => void;
 }
 
 const usePlanStore = create<PlanStore>((set, get) => ({
@@ -562,6 +563,17 @@ const usePlanStore = create<PlanStore>((set, get) => ({
     } catch (e) {
       console.error('❌ 加载计划数据失败:', e);
     }
+  },
+
+  // 调试函数：打印当前状态
+  debug: () => {
+    const state = get();
+    console.log('🔍 ===== 计划Store调试信息 =====');
+    console.log('📦 phases (全部):', state.phases.length, '个任务');
+    console.log('📦 savedPhases:', state.savedPhases.length, '个任务');
+    console.log('📦 isDirty:', state.isDirty);
+    console.log('📦 所有任务的 projectId:', [...new Set(state.phases.map(p => p.projectId))]);
+    console.log('🔍 ===========================');
   },
 }));
 

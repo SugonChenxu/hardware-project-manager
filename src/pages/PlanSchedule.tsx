@@ -53,7 +53,7 @@ const PHASE_COLORS: Record<string, string> = {
 // ── 组件 ──
 
 const PlanSchedule: React.FC = () => {
-  const { currentProjectId, projects } = useProjectStore();
+  const { currentProjectId, projects, setCurrent } = useProjectStore();
   const {
     phases, history, isDirty,
     importTemplate, generateFromTemplate, getByProject,
@@ -62,8 +62,28 @@ const PlanSchedule: React.FC = () => {
     refreshStatuses, detectParallelAndCritical,
     loadHistory, getHistoryByProject,
     addPhaseGroup, removePhaseGroup, updatePhaseGroupName,
-    load,
+    load, debug,
   } = usePlanStore();
+
+  // 如果 currentProjectId 为空，自动选择第一个项目
+  useEffect(() => {
+    if (!currentProjectId && projects.length > 0) {
+      console.log('⚠️ currentProjectId 为空，自动选择第一个项目:', projects[0].id);
+      setCurrent(projects[0].id);
+    }
+  }, [currentProjectId, projects, setCurrent]);
+
+  // 暴露 debug 函数到全局，方便在控制台调用
+  useEffect(() => {
+    (window as any).debugPlan = () => {
+      console.log('🔍 当前项目ID:', currentProjectId);
+      console.log('🔍 项目列表:', projects);
+      debug();
+      const projectPhases = currentProjectId ? getByProject(currentProjectId) : [];
+      console.log('🔍 当前项目的任务:', projectPhases.length, '个');
+    };
+    console.log('💡 提示：在控制台输入 debugPlan() 查看计划数据状态');
+  }, [currentProjectId, projects]);
 
   const [editingCell, setEditingCell] = useState<{ id: string; field: 'startDate' | 'endDate' | 'duration' } | null>(null);
   const [editingTaskNameId, setEditingTaskNameId] = useState<string | null>(null);
