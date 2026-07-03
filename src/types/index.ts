@@ -216,6 +216,10 @@ export interface PlanPhase {
   parentId?: string;        // 父任务 ID（子任务挂在父任务下方显示）
   parentTaskName?: string;   // 父任务名称（临时字段，用于模板生成时关联父任务）
   description?: string;     // 说明（自由编辑）
+  // 以下为 UI 渲染辅助字段（不存储）
+  _hasChildren?: boolean;  // 是否有子任务
+  _isChild?: boolean;      // 是否是子任务
+  _rowType?: string;       // 行类型（'group' 或 'phase'）
 }
 
 /** 计划模板（从 Excel 导入的基准数据） */

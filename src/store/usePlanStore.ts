@@ -12,6 +12,70 @@ function daysBetween(d1: string, d2: string): number {
 function fmt(d: dayjs.Dayjs): string {
   return d.format('YYYY-MM-DD');
 }
+
+/**
+ * 级联更新下游linked任务
+ * 从指定索引的任务开始，向后遍历，更新所有linked=true的下游任务
+ */
+function cascadeUpdateDownstream(phases: PlanPhase[], startIndex: number): PlanPhase[] {
+  let result = [...phases];
+  
+  for (let i = startIndex + 1; i < result.length; i++) {
+    const prev = result[i - 1];
+    const current = result[i];
+    
+    // 只处理linked=true的任务
+    if (!current.linked) continue;
+    
+    // 如果当前任务的开始时间早于前一个任务结束时间，则级联更新
+    if (dayjs(current.startDate).isBefore(dayjs(prev.endDate))) {
+      // 如果当前任务是父任务（有子任务），需要特殊处理
+      const hasChildren = result.some(p => p.parentId === current.id);
+      
+      if (hasChildren) {
+        // 父任务：只更新开始时间（结束时间由子任务决定）
+        result[i] = {
+          ...current,
+          startDate: prev.endDate,
+          duration: daysBetween(prev.endDate, current.endDate),
+          status: computeStatusFull(prev.endDate, current.endDate),
+        };
+        
+        // 更新子任务的开始时间
+        result = result.map(p => {
+          if (p.parentId === current.id && !p.lockStart) {
+            return {
+              ...p,
+              startDate: prev.endDate,
+              endDate: fmt(dayjs(prev.endDate).add(p.duration, 'day')),
+              status: computeStatusFull(prev.endDate, fmt(dayjs(prev.endDate).add(p.duration, 'day'))),
+            };
+          }
+          return p;
+        });
+      } else {
+        // 普通任务：同时更新开始和结束时间
+        result[i] = {
+          ...current,
+          startDate: prev.endDate,
+          endDate: fmt(dayjs(prev.endDate).add(current.duration, 'day')),
+          status: computeStatusFull(prev.endDate, fmt(dayjs(prev.endDate).add(current.duration, 'day'))),
+        };
+      }
+      
+      console.log(`📅 级联更新: ${prev.taskName}(${prev.endDate}) → ${current.taskName}(${result[i].startDate})`);
+    } else if (dayjs(current.startDate).isSame(dayjs(prev.endDate))) {
+      // 时间已经连续，不需要更新
+      continue;
+    } else {
+      // 当前任务已经开始（时间晚于前一个任务结束），停止级联
+      break;
+    }
+  }
+  
+  return result;
+}
+
 export function computeStatusFull(startDate: string, endDate: string): 'completed' | 'in_progress' | 'upcoming' {
   const today = dayjs().startOf('day');
   const start = dayjs(startDate).startOf('day');
@@ -257,8 +321,37 @@ const usePlanStore = create<PlanStore>((set, get) => ({
       return updated;
     });
     
-    // 智能日期推算：如果当前任务是父任务，自动更新子任务的开始日期
+    // 智能日期推算：
     const updatedPhase = newPhases.find(p => p.id === id);
+    
+    // 1. 如果当前任务是子任务，自动更新父任务的开始和结束时间
+    if (updatedPhase && updatedPhase.parentId) {
+      // 找到父任务
+      const parentIndex = newPhases.findIndex(p => p.id === updatedPhase.parentId);
+      if (parentIndex !== -1) {
+        const parent = newPhases[parentIndex];
+        
+        // 计算父任务的结束时间（所有子任务中结束时间最晚的）
+        const children = newPhases.filter(p => p.parentId === parent.id);
+        if (children.length > 0) {
+          let latestEndDate = children[0].endDate;
+          for (const child of children) {
+            if (dayjs(child.endDate).isAfter(dayjs(latestEndDate))) {
+              latestEndDate = child.endDate;
+            }
+          }
+          newPhases[parentIndex].endDate = latestEndDate;
+          newPhases[parentIndex].duration = daysBetween(newPhases[parentIndex].startDate, latestEndDate);
+        }
+        
+        newPhases[parentIndex].status = computeStatusFull(newPhases[parentIndex].startDate, newPhases[parentIndex].endDate);
+        
+        // 级联更新：父任务结束后，更新下游linked任务
+        newPhases = cascadeUpdateDownstream(newPhases, parentIndex);
+      }
+    }
+    
+    // 2. 如果当前任务是父任务，自动更新子任务的开始日期
     if (updatedPhase && field === 'startDate') {
       // 找到所有子任务（parentId === id）
       newPhases = newPhases.map(p => {
@@ -278,6 +371,12 @@ const usePlanStore = create<PlanStore>((set, get) => ({
         }
         return p;
       });
+    }
+    
+    // 3. 如果当前任务（包括父任务）的结束时间变化，级联更新下游linked任务
+    if (updatedPhase && field === 'endDate' && !updatedPhase.parentId) {
+      const currentIndex = newPhases.findIndex(p => p.id === id);
+      newPhases = cascadeUpdateDownstream(newPhases, currentIndex);
     }
     
     set({ phases: newPhases, isDirty: true });
@@ -477,6 +576,50 @@ const usePlanStore = create<PlanStore>((set, get) => ({
       newPhases[maxIdx].isCriticalPath = true;
     });
 
+    // 2.5 计算父任务的开始和结束时间
+    // 找出所有父任务（有子任务的）
+    const parentTasks = newPhases.filter(p => newPhases.some(c => c.parentId === p.id));
+    
+    parentTasks.forEach(parent => {
+      // 计算父任务的开始时间（上一个同级任务的结束时间）
+      const parentIndex = newPhases.findIndex(p => p.id === parent.id);
+      let prevSiblingEndDate = null;
+      
+      // 找到上一个同级任务
+      for (let i = parentIndex - 1; i >= 0; i--) {
+        const sibling = newPhases[i];
+        // 同级任务：同一个 phaseGroup 或者同一个 parallelGroup
+        if (sibling.phaseGroup === parent.phaseGroup || sibling.parallelGroup === parent.parallelGroup) {
+          prevSiblingEndDate = sibling.endDate;
+          break;
+        }
+        // 如果到了上一个阶段，也停止
+        if (sibling.phaseGroup !== parent.phaseGroup && !sibling.phaseGroup.includes(parent.phaseGroup.split('-')[0])) {
+          break;
+        }
+      }
+      
+      // 如果有上一个同级任务，父任务开始时间 = 上一个同级任务的结束时间
+      if (prevSiblingEndDate) {
+        newPhases[parentIndex].startDate = prevSiblingEndDate;
+      }
+      
+      // 计算父任务的结束时间（所有子任务中结束时间最晚的）
+      const children = newPhases.filter(p => p.parentId === parent.id);
+      if (children.length > 0) {
+        let latestEndDate = children[0].endDate;
+        for (const child of children) {
+          if (dayjs(child.endDate).isAfter(dayjs(latestEndDate))) {
+            latestEndDate = child.endDate;
+          }
+        }
+        newPhases[parentIndex].endDate = latestEndDate;
+        newPhases[parentIndex].duration = daysBetween(newPhases[parentIndex].startDate, latestEndDate);
+      }
+      
+      newPhases[parentIndex].status = computeStatusFull(newPhases[parentIndex].startDate, newPhases[parentIndex].endDate);
+    });
+    
     // 3. 级联更新 downstream linked 任务
     // 如果父任务结束日期变化，更新下游 linked 任务
     newPhases.forEach((phase, i) => {

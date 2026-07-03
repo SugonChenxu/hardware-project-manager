@@ -6,7 +6,7 @@ import {
 import {
   PlusOutlined, UploadOutlined, LockOutlined, UnlockOutlined,
   DeleteOutlined, SaveOutlined, HistoryOutlined, ReloadOutlined,
-  DownloadOutlined, CheckCircleOutlined, ClockCircleOutlined,
+  DownloadOutlined, CheckCircleOutlined, ClockCircleOutlined, InfoCircleOutlined,
   MinusCircleOutlined, EditOutlined, CloseOutlined, InsertRowBelowOutlined,
   LinkOutlined, FolderAddOutlined, DownOutlined, RightOutlined,
 } from '@ant-design/icons';
@@ -477,7 +477,10 @@ const PlanSchedule: React.FC = () => {
     const label = field === 'startDate' ? '开始' : '结束';
     const isLocked = field === 'startDate' ? phase.lockStart : phase.lockEnd;
     const toggleLockFn = field === 'startDate' ? toggleLockStart : toggleLockEnd;
-
+    
+    // 判断是否为父任务（有子任务的）
+    const isParentTask = phase._hasChildren;
+    
     // 查找同级别上一节点的结束时间（用于快捷选择）
     // 子任务 → 上一兄弟；顶层/父任务 → 上一顶层节点
     const projectPhasesSorted = projectPhases.sort((a: PlanPhase, b: PlanPhase) => a.sortOrder - b.sortOrder);
@@ -570,7 +573,7 @@ const PlanSchedule: React.FC = () => {
     }
 
     return (
-      <Tooltip title={`点击编辑${label}日期`}>
+      <Tooltip title={isParentTask ? `父任务时间由子任务自动计算（可手动覆盖）` : `点击编辑${label}日期`}>
         <div
           onClick={() => {
             if (!isLocked) {
@@ -581,9 +584,17 @@ const PlanSchedule: React.FC = () => {
               setDatePickerOpen(true);
             }
           }}
-          style={{ cursor: isLocked ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+          style={{ 
+            cursor: isLocked ? 'not-allowed' : 'pointer', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 4,
+            backgroundColor: isParentTask ? '#f6ffed' : 'transparent',
+            padding: isParentTask ? '2px 6px' : 0,
+            borderRadius: 4
+          }}
         >
-          <ClockCircleOutlined style={{ fontSize: 11, color: '#999' }} />
+          <ClockCircleOutlined style={{ fontSize: 11, color: isParentTask ? '#52c41a' : '#999' }} />
           <Text style={{ opacity: phase.status === 'completed' ? 0.55 : 1, fontSize: 13 }}>
             {val || '-'}
           </Text>
@@ -595,6 +606,11 @@ const PlanSchedule: React.FC = () => {
               {isLocked ? <LockOutlined style={{ fontSize: 10, color: '#fa8c16' }} /> : <UnlockOutlined style={{ fontSize: 10, color: '#d9d9d9' }} />}
             </span>
           </Tooltip>
+          {isParentTask && (
+            <Tooltip title="自动计算">
+              <span style={{ fontSize: 9, color: '#52c41a', fontWeight: 500 }}>AUTO</span>
+            </Tooltip>
+          )}
         </div>
       </Tooltip>
     );
