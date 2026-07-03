@@ -20,14 +20,29 @@ function fmt(d: dayjs.Dayjs): string {
 function cascadeUpdateDownstream(phases: PlanPhase[], startIndex: number): PlanPhase[] {
   let result = [...phases];
   
+  // 找到startIndex后面的第一个顶层任务（跳过子任务）
+  let nextTopLevelIndex = -1;
   for (let i = startIndex + 1; i < result.length; i++) {
+    if (!result[i].parentId) {
+      nextTopLevelIndex = i;
+      break;
+    }
+  }
+  
+  if (nextTopLevelIndex === -1) return result; // 没有顶层任务可级联
+  
+  // 从第一个顶层任务开始，级联更新所有linked的顶层任务
+  for (let i = nextTopLevelIndex; i < result.length; i++) {
     const prev = result[i - 1];
     const current = result[i];
     
-    // 只处理linked=true的任务，遇到linked=false的任务停止级联
+    // 只处理顶层任务，跳过子任务
+    if (current.parentId) continue;
+    
+    // 遇到linked=false的任务停止级联
     if (!current.linked) break;
     
-    // 总是更新当前任务的开始时间为前一个任务的结束时间
+    // 更新当前任务的开始时间为前一个任务的结束时间
     const newStart = prev.endDate;
     
     // 更新当前任务
