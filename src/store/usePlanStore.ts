@@ -229,7 +229,7 @@ const usePlanStore = create<PlanStore>((set, get) => ({
   // 更新阶段日期
   updatePhaseDate: (id, field, value) => {
     const { phases } = get();
-    const newPhases = phases.map(p => {
+    let newPhases = phases.map(p => {
       if (p.id !== id) return p;
 
       const updated = { ...p };
@@ -252,6 +252,30 @@ const usePlanStore = create<PlanStore>((set, get) => ({
       updated.status = computeStatusFull(updated.startDate, updated.endDate);
       return updated;
     });
+    
+    // 智能日期推算：如果当前任务是父任务，自动更新子任务的开始日期
+    const updatedPhase = newPhases.find(p => p.id === id);
+    if (updatedPhase && field === 'startDate') {
+      // 找到所有子任务（parentId === id）
+      newPhases = newPhases.map(p => {
+        if (p.parentId === id) {
+          // 子任务开始日期与父任务一致
+          const newStart = updatedPhase.startDate;
+          let newEnd = p.endDate;
+          if (!p.lockEnd) {
+            newEnd = fmt(dayjs(newStart).add(p.duration, 'day'));
+          }
+          return {
+            ...p,
+            startDate: newStart,
+            endDate: newEnd,
+            status: computeStatusFull(newStart, newEnd),
+          };
+        }
+        return p;
+      });
+    }
+    
     set({ phases: newPhases, isDirty: true });
   },
 
