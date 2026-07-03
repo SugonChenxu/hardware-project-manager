@@ -35,7 +35,7 @@ const App: React.FC = () => {
         console.log('🚀 开始加载所有数据...');
         
         // 并行加载所有 store 数据
-        await Promise.all([
+        const results = await Promise.allSettled([
           useProjectStore.getState().load(),
           usePlanStore.getState().load(),
           useTaskStore.getState().load(),
@@ -48,6 +48,16 @@ const App: React.FC = () => {
           useReportStore.getState().load(),
           useMeetingNoteStore.getState().load(),
         ]);
+
+        // 检查是否有失败
+        results.forEach((result, index) => {
+          const names = ['projects', 'plans', 'tasks', 'todos', 'bom', 'meetings', 'bugs', 'costs', 'materials', 'reports', 'meetingNotes'];
+          if (result.status === 'rejected') {
+            console.error(`❌ ${names[index]} 加载失败:`, result.reason);
+          } else {
+            console.log(`✅ ${names[index]} 加载完成`);
+          }
+        });
 
         console.log('✅ 所有数据加载完成！');
         setLoading(false);

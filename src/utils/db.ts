@@ -107,12 +107,23 @@ export async function dbGet<T>(key: string, defaultValue: T): Promise<T> {
   try {
     const db = await getDB();
     const record = await db.get('kv-store', key);
+    console.log(`📖 dbGet(${key}):`, record ? '找到数据' : '无数据', record?.value);
     if (record) {
       return record.value as T;
     }
     return defaultValue;
   } catch (e) {
     console.error('DB 读取失败:', key, e);
+    // 降级到 localStorage
+    try {
+      const data = localStorage.getItem(`hpm_${key}`);
+      if (data) {
+        console.log(`📖 从 localStorage 读取 ${key}:`, JSON.parse(data));
+        return JSON.parse(data) as T;
+      }
+    } catch (e2) {
+      console.error('localStorage 读取也失败:', e2);
+    }
     return defaultValue;
   }
 }
@@ -120,13 +131,25 @@ export async function dbGet<T>(key: string, defaultValue: T): Promise<T> {
 export async function dbSet<T>(key: string, value: T): Promise<void> {
   try {
     const db = await getDB();
+    console.log(`💾 dbSet(${key}):`, value);
     await db.put('kv-store', {
       key,
       value,
       updatedAt: Date.now(),
     });
+    console.log(`✅ dbSet(${key}) 完成`);
+    
+    // 同时写入 localStorage 作为备份
+    localStorage.setItem(`hpm_${key}`, JSON.stringify(value));
   } catch (e) {
     console.error('DB 写入失败:', key, e);
+    // 降级到 localStorage
+    try {
+      localStorage.setItem(`hpm_${key}`, JSON.stringify(value));
+      console.log(`💾 写入 localStorage 备份 ${key}`);
+    } catch (e2) {
+      console.error('localStorage 写入也失败:', e2);
+    }
   }
 }
 
@@ -134,6 +157,7 @@ export async function dbRemove(key: string): Promise<void> {
   try {
     const db = await getDB();
     await db.delete('kv-store', key);
+    localStorage.removeItem(`hpm_${key}`);
   } catch (e) {
     console.error('DB 删除失败:', key, e);
   }
