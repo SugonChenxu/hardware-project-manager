@@ -334,9 +334,27 @@ export async function dbGetInfo() {
 }
 
 // 从 localStorage 迁移数据到 IndexedDB（一次性迁移）
+// 添加迁移标记，避免重复迁移
+const MIGRATION_KEY = 'hpm_migration_done';
+
 export async function migrateFromLocalStorage(): Promise<void> {
   try {
+    // 检查是否已经迁移过
+    const migrationDone = localStorage.getItem(MIGRATION_KEY);
+    if (migrationDone === 'true') {
+      console.log('✅ 数据迁移已完成，跳过');
+      return;
+    }
+    
     console.log('🔄 开始从 localStorage 迁移数据到 IndexedDB...');
+    
+    // 检查 IndexedDB 是否已有数据
+    const existingPhases = await dbGetPlanPhases();
+    if (existingPhases && existingPhases.length > 0) {
+      console.log('✅ IndexedDB 已有数据，跳过迁移');
+      localStorage.setItem(MIGRATION_KEY, 'true');
+      return;
+    }
     
     // 迁移计划数据
     const planData = localStorage.getItem('hpm_plan_phases');
@@ -375,6 +393,9 @@ export async function migrateFromLocalStorage(): Promise<void> {
         console.log('✅', key, '数据已迁移');
       }
     }
+    
+    // 标记迁移已完成
+    localStorage.setItem(MIGRATION_KEY, 'true');
     
     console.log('🎉 数据迁移完成！');
   } catch (e) {

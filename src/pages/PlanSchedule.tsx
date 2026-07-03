@@ -114,8 +114,21 @@ const PlanSchedule: React.FC = () => {
 
   useEffect(() => { load(); }, []);
 
+  // 监听 currentProjectId 变化，打印调试信息
+  useEffect(() => {
+    console.log('🔍 currentProjectId 变化:', currentProjectId);
+    if (currentProjectId) {
+      const projectPhases = getByProject(currentProjectId);
+      console.log('🔍 当前项目的任务数:', projectPhases.length);
+    }
+  }, [currentProjectId]);
+
   const projectPhases = useMemo(
-    () => (currentProjectId ? getByProject(currentProjectId) : []),
+    () => {
+      const result = currentProjectId ? getByProject(currentProjectId) : [];
+      console.log('🔍 projectPhases 计算:', result.length, '个任务');
+      return result;
+    },
     [currentProjectId, phases],
   );
 
@@ -1014,15 +1027,26 @@ const PlanSchedule: React.FC = () => {
         )}
       </Card>
 
-      {/* ── 自动保存提示 ── */}
-      <Alert
-        type="success"
-        message="自动保存已启用"
-        description="每次修改都会自动保存到浏览器，无需手动保存"
-        showIcon
-        style={{ marginBottom: 16 }}
-        closable
-      />
+      {/* ── 未保存提示 ── */}
+      {isDirty && (
+        <Alert
+          type="warning"
+          message="有未保存的修改"
+          description=" data has been modified, please save or discard"
+          showIcon
+          style={{ marginBottom: 16 }}
+          action={
+            <Space>
+              <Button size="small" onClick={discardChanges}>
+                撤销
+              </Button>
+              <Button size="small" type="primary" onClick={() => currentProjectId && confirmSave(currentProjectId)}>
+                确认保存
+              </Button>
+            </Space>
+          }
+        />
+      )}
 
       {/* ── 工具栏 ── */}
       <Card size="small" style={{ marginBottom: 16 }}>

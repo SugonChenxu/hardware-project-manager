@@ -557,6 +557,7 @@ const usePlanStore = create<PlanStore>((set, get) => ({
         set({ phases, savedPhases: JSON.parse(JSON.stringify(phases)), isDirty: false });
         console.log('✅ 计划数据已从 IndexedDB 恢复，共', phases.length, '个任务');
         console.log('✅ 数据详情:', phases);
+        console.log('✅ 所有任务的 projectId:', [...new Set(phases.map(p => p.projectId))]);
       } else {
         console.log('⚠️ 计划数据为空，保持默认状态');
       }
