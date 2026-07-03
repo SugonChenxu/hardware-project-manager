@@ -30,11 +30,6 @@ function cascadeUpdateDownstream(phases: PlanPhase[], startIndex: number): PlanP
     // 总是更新当前任务的开始时间为前一个任务的结束时间
     const newStart = prev.endDate;
     
-    // 如果当前任务开始时间已经等于前一个任务结束时间，无需更新
-    if (dayjs(current.startDate).isSame(dayjs(newStart))) {
-      continue;
-    }
-    
     // 更新当前任务
     if (!current.lockStart) {
       const newEnd = current.lockEnd ? current.endDate : fmt(dayjs(newStart).add(current.duration, 'day'));
