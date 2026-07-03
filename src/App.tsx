@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { ConfigProvider, App as AntApp } from 'antd';
+import { ConfigProvider, App as AntApp, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import AppLayout from './components/AppLayout';
 import Dashboard from './pages/Dashboard';
@@ -13,7 +13,74 @@ import CostEstimate from './pages/CostEstimate';
 import BugTracker from './pages/BugTracker';
 import PlanSchedule from './pages/PlanSchedule';
 
+// 导入所有 store 的 load 函数
+import { useProjectStore } from './store/useProjectStore';
+import usePlanStore from './store/usePlanStore';
+import { useTaskStore } from './store/useTaskStore';
+import { useTodoStore } from './store/useTodoStore';
+import { useBOMStore } from './store/useBOMStore';
+import { useMeetingStore } from './store/useMeetingStore';
+import { useBugStore } from './store/useBugStore';
+import { useCostStore } from './store/useCostStore';
+import { useMaterialStore } from './store/useMaterialStore';
+import { useReportStore } from './store/useReportStore';
+import useMeetingNoteStore from './store/useMeetingNoteStore';
+
 const App: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadAllData = async () => {
+      try {
+        console.log('🚀 开始加载所有数据...');
+        
+        // 并行加载所有 store 数据
+        await Promise.all([
+          useProjectStore.getState().load(),
+          usePlanStore.getState().load(),
+          useTaskStore.getState().load(),
+          useTodoStore.getState().load(),
+          useBOMStore.getState().load(),
+          useMeetingStore.getState().load(),
+          useBugStore.getState().load(),
+          useCostStore.getState().load(),
+          useMaterialStore.getState().load(),
+          useReportStore.getState().load(),
+          useMeetingNoteStore.getState().load(),
+        ]);
+
+        console.log('✅ 所有数据加载完成！');
+        setLoading(false);
+      } catch (error) {
+        console.error('❌ 数据加载失败:', error);
+        setLoading(false);
+      }
+    };
+
+    loadAllData();
+  }, []);
+
+  // 加载中显示 spinner
+  if (loading) {
+    return (
+      <ConfigProvider locale={zhCN}>
+        <AntApp>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            height: '100vh',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <Spin size="large" />
+            <div style={{ fontSize: '16px', color: '#666' }}>正在加载数据...</div>
+          </div>
+        </AntApp>
+      </ConfigProvider>
+    );
+  }
+
   return (
     <ConfigProvider
       locale={zhCN}
