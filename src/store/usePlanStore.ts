@@ -28,6 +28,8 @@ const DEFAULT_TEMPLATE_PHASES: PlanTemplatePhase[] = [
   { phaseGroup: 'M1预研阶段', taskName: 'L3立项筹备', startDate: '2026-01-15', endDate: '2026-01-22', duration: 7, parallelGroup: 'L3', linked: true },
   { phaseGroup: 'M2计划阶段', taskName: 'L4概要设计', startDate: '2026-01-22', endDate: '2026-01-29', duration: 7, parallelGroup: 'L4', linked: true },
   { phaseGroup: 'M2计划阶段', taskName: 'L5开发计划', startDate: '2026-01-22', endDate: '2026-01-29', duration: 7, parallelGroup: 'L5', linked: false },
+  // L6 并行设计（父任务）
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L6并行设计', startDate: '2026-01-29', endDate: '2026-03-05', duration: 35, parallelGroup: 'L6', linked: false },
   { phaseGroup: 'M3研发测试阶段', taskName: 'L6-1主板原理图', startDate: '2026-01-29', endDate: '2026-02-18', duration: 20, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
   { phaseGroup: 'M3研发测试阶段', taskName: 'L6-2 Layout', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
   { phaseGroup: 'M3研发测试阶段', taskName: 'L6-3 PCB洗板', startDate: '2026-01-29', endDate: '2026-03-05', duration: 35, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
@@ -39,6 +41,8 @@ const DEFAULT_TEMPLATE_PHASES: PlanTemplatePhase[] = [
   { phaseGroup: 'M3研发测试阶段', taskName: 'L6-9 BMC详细设计', startDate: '2026-01-29', endDate: '2026-02-28', duration: 30, parallelGroup: 'L6', linked: false, parentTaskName: 'L6并行设计' },
   { phaseGroup: 'M3研发测试阶段', taskName: 'L7 Power On', startDate: '2026-03-05', endDate: '2026-03-10', duration: 5, parallelGroup: 'L7', linked: true },
   { phaseGroup: 'M3研发测试阶段', taskName: 'L8 EVT', startDate: '2026-03-10', endDate: '2026-04-09', duration: 30, parallelGroup: 'L8', linked: true },
+  // L9 并行测试（父任务）
+  { phaseGroup: 'M3研发测试阶段', taskName: 'L9并行测试', startDate: '2026-04-09', endDate: '2026-05-19', duration: 40, parallelGroup: 'L9', linked: false },
   { phaseGroup: 'M3研发测试阶段', taskName: 'L9-1 组装评审', startDate: '2026-04-09', endDate: '2026-04-11', duration: 2, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
   { phaseGroup: 'M3研发测试阶段', taskName: 'L9-2 PI测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
   { phaseGroup: 'M3研发测试阶段', taskName: 'L9-3 SIV测试', startDate: '2026-04-09', endDate: '2026-05-09', duration: 30, parallelGroup: 'L9', linked: false, parentTaskName: 'L9并行测试' },
@@ -144,10 +148,10 @@ const usePlanStore = create<PlanStore>((set, get) => ({
       };
     });
 
-    // 补上 parentId
+    // 补上 parentId（根据 parentTaskName 查找父任务）
     newPhases.forEach(phase => {
       if (phase.parentTaskName) {
-        const parent = newPhases.find(p => p.taskName === phase.parentTaskName && !p.parentTaskName);
+        const parent = newPhases.find(p => p.taskName === phase.parentTaskName);
         if (parent) {
           phase.parentId = parent.id;
         }
