@@ -76,14 +76,23 @@ const PlanSchedule: React.FC = () => {
   // 暴露 debug 函数到全局，方便在控制台调用
   useEffect(() => {
     (window as any).debugPlan = () => {
+      console.log('🔍 ===== 计划数据调试 =====');
       console.log('🔍 当前项目ID:', currentProjectId);
-      console.log('🔍 项目列表:', projects);
-      debug();
-      const projectPhases = currentProjectId ? getByProject(currentProjectId) : [];
-      console.log('🔍 当前项目的任务:', projectPhases.length, '个');
+      console.log('🔍 项目列表:', projects.map((p: any) => ({ id: p.id, name: p.name })));
+      console.log('🔍 所有任务数 (phases):', phases.length);
+      console.log('🔍 isDirty:', isDirty);
+      
+      if (currentProjectId) {
+        const projectPhases = getByProject(currentProjectId);
+        console.log('🔍 当前项目的任务数:', projectPhases.length);
+        console.log('🔍 当前项目的任务:', projectPhases);
+      } else {
+        console.log('⚠️ 没有选择项目！');
+      }
+      console.log('🔍 =======================');
     };
-    console.log('💡 提示：在控制台输入 debugPlan() 查看计划数据状态');
-  }, [currentProjectId, projects]);
+    console.log('💡 提示：在控制台输入 window.debugPlan() 查看计划数据状态');
+  }, [currentProjectId, projects, phases, isDirty]);
 
   const [editingCell, setEditingCell] = useState<{ id: string; field: 'startDate' | 'endDate' | 'duration' } | null>(null);
   const [editingTaskNameId, setEditingTaskNameId] = useState<string | null>(null);
@@ -904,6 +913,44 @@ const PlanSchedule: React.FC = () => {
     );
   }
 
+  // 测试保存函数
+  const testSave = async () => {
+    console.log('🧪 测试保存...');
+    const testPhases = [
+      {
+        id: 'test-1',
+        projectId: currentProjectId,
+        phaseGroup: '测试阶段',
+        taskName: '测试任务1',
+        startDate: '2026-01-01',
+        endDate: '2026-01-07',
+        duration: 7,
+        lockStart: false,
+        lockEnd: false,
+        linked: true,
+        isCriticalPath: false,
+        isParallel: false,
+        parallelGroup: 'L1',
+        status: 'upcoming' as const,
+        sortOrder: 0,
+        parentId: undefined,
+        description: '测试数据',
+      }
+    ];
+    try {
+      const { dbSetPlanPhases } = await import('../utils/db');
+      await dbSetPlanPhases(testPhases);
+      console.log('✅ 测试数据已保存到 IndexedDB');
+      message.success('测试数据已保存，正在重新加载...');
+      
+      // 重新加载
+      await load();
+    } catch (e) {
+      console.error('❌ 测试保存失败:', e);
+      message.error('测试保存失败: ' + e);
+    }
+  };
+
   return (
     <div>
       <style>
@@ -916,6 +963,38 @@ const PlanSchedule: React.FC = () => {
           }
         `}
       </style>
+
+      {/* ── 调试面板 ── */}
+      <Card size="small" style={{ marginBottom: 16, background: '#f0f5ff', border: '1px solid #91caff' }}>
+        <Row gutter={[12, 8]} align="middle">
+          <Col>
+            <Space>
+              <Tag color="blue">调试信息</Tag>
+              <span style={{ fontSize: 12 }}>项目ID: {currentProjectId || '无'}</span>
+              <span style={{ fontSize: 12 }}>任务数: {phases.length}</span>
+              <span style={{ fontSize: 12 }}>当前项目任务: {currentProjectId ? getByProject(currentProjectId).length : 0}</span>
+            </Space>
+          </Col>
+          <Col>
+            <Space>
+              <Button size="small" type="primary" onClick={load}>
+                重新加载数据
+              </Button>
+              <Button size="small" onClick={testSave}>
+                测试保存
+              </Button>
+              <Button size="small" onClick={() => {
+                const store = usePlanStore.getState();
+                console.log('📦 完整store状态:', store);
+                message.info('已打印完整状态到控制台');
+              }}>
+                打印状态
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
       {/* ── 未保存提示 ── */}
       {isDirty && (
         <Alert
