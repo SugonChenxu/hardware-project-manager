@@ -425,92 +425,29 @@ const usePlanStore = create<PlanStore>((set, get) => ({
       }
     });
 
-    // 2. 检测关键路径（使用时间窗口重叠聚类算法）
-    // 找出所有 linked=true 的任务，按时间顺序连接
-    const linkedPhases = newPhases.filter(p => p.linked);
-    if (linkedPhases.length > 0) {
-      // 按开始时间排序
-      linkedPhases.sort((a, b) => dayjs(a.startDate).diff(dayjs(b.startDate)));
-
-      // 时间窗口重叠聚类
-      const clusters: number[][] = [];
-      linkedPhases.forEach(lp => {
-        const lpStart = dayjs(lp.startDate);
-        const lpEnd = dayjs(lp.endDate);
-
-        // 找重叠的聚类
-        let overlappingCluster: number[] | null = null;
-        for (const cluster of clusters) {
-          const hasOverlap = cluster.some(idx => {
-            const p = newPhases[idx];
-            const pStart = dayjs(p.startDate);
-            const pEnd = dayjs(p.endDate);
-            return lpStart.isBefore(pEnd) && lpEnd.isAfter(pStart);
-          });
-          if (hasOverlap) {
-            overlappingCluster = cluster;
-            break;
+    // 2. 检测关键路径（同级任务中，结束时间最晚的标记为关键路径）
+    // 按 parallelGroup 分组，找出每个组中结束时间最晚的任务
+    Object.values(groupMap).forEach(indices => {
+      if (indices.length < 2) {
+        // 只有一个任务，标记为关键路径
+        newPhases[indices[0]].isCriticalPath = true;
+        return;
+      }
+      
+      // 找出结束时间最晚的任务
+      let maxIdx = indices[0];
+      for (const i of indices) {
+        if (dayjs(newPhases[i].endDate).isAfter(dayjs(newPhases[maxIdx].endDate))) {
+          maxIdx = i;
+        } else if (dayjs(newPhases[i].endDate).isSame(dayjs(newPhases[maxIdx].endDate))) {
+          // 结束时间相同，选择周期最长的
+          if (newPhases[i].duration > newPhases[maxIdx].duration) {
+            maxIdx = i;
           }
         }
-
-        const lpIndex = newPhases.findIndex(p => p.id === lp.id);
-        if (overlappingCluster) {
-          overlappingCluster.push(lpIndex);
-        } else {
-          clusters.push([lpIndex]);
-        }
-      });
-
-      // 每个聚类内找出耗时最长的路径作为关键路径
-      clusters.forEach(cluster => {
-        if (cluster.length <= 1) {
-          newPhases[cluster[0]].isCriticalPath = true;
-          return;
-        }
-
-        // 按开始时间排序
-        cluster.sort((a, b) => dayjs(newPhases[a].startDate).diff(dayjs(newPhases[b].startDate)));
-
-        // 找出总耗时最长的路径
-        const dp: number[] = new Array(cluster.length).fill(0);
-        const parent: number[] = new Array(cluster.length).fill(-1);
-
-        for (let i = 0; i < cluster.length; i++) {
-          dp[i] = newPhases[cluster[i]].duration;
-        }
-
-        for (let i = 1; i < cluster.length; i++) {
-          for (let j = 0; j < i; j++) {
-            const endJ = dayjs(newPhases[cluster[j]].endDate);
-            const startI = dayjs(newPhases[cluster[i]].startDate);
-            if (endJ.isSame(startI) || endJ.isBefore(startI)) {
-              if (dp[j] + newPhases[cluster[i]].duration > dp[i]) {
-                dp[i] = dp[j] + newPhases[cluster[i]].duration;
-                parent[i] = j;
-              }
-            }
-          }
-        }
-
-        // 找出瓶颈
-        let maxIdx = 0;
-        for (let i = 1; i < cluster.length; i++) {
-          if (dp[i] > dp[maxIdx]) maxIdx = i;
-        }
-
-        // 回溯标记关键路径
-        const criticalIndices = new Set<number>();
-        let curr = maxIdx;
-        while (curr !== -1) {
-          criticalIndices.add(cluster[curr]);
-          curr = parent[curr];
-        }
-
-        criticalIndices.forEach(idx => {
-          newPhases[idx].isCriticalPath = true;
-        });
-      });
-    }
+      }
+      newPhases[maxIdx].isCriticalPath = true;
+    });
 
     // 3. 级联更新 downstream linked 任务
     // 如果父任务结束日期变化，更新下游 linked 任务

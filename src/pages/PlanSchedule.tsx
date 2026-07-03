@@ -8,7 +8,7 @@ import {
   DeleteOutlined, SaveOutlined, HistoryOutlined, ReloadOutlined,
   DownloadOutlined, CheckCircleOutlined, ClockCircleOutlined,
   MinusCircleOutlined, EditOutlined, CloseOutlined, InsertRowBelowOutlined,
-  LinkOutlined, FolderAddOutlined,
+  LinkOutlined, FolderAddOutlined, DownOutlined, RightOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/zh-cn';
@@ -1177,9 +1177,48 @@ const PlanSchedule: React.FC = () => {
                   );
                 }
                 return (
-                  <div style={{ paddingLeft: record._isChild ? 24 : 0 }}>
-                    {record._isChild && <span style={{ color: '#1677ff', marginRight: 6 }}>└</span>}
-                    {renderTaskNameCell(record)}
+                  <div style={{ 
+                    paddingLeft: record._isChild ? 32 : 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    {/* 展开/折叠按钮 */}
+                    {record._hasChildren && (
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={expandedParents.has(record.id) ? <DownOutlined /> : <RightOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedParents(prev => {
+                            const next = new Set(prev);
+                            if (expandedParents.has(record.id)) {
+                              next.delete(record.id);
+                            } else {
+                              next.add(record.id);
+                            }
+                            return next;
+                          });
+                        }}
+                        style={{ 
+                          width: 20, 
+                          height: 20, 
+                          padding: 0, 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          fontSize: 10,
+                          color: '#1677ff'
+                        }}
+                      />
+                    )}
+                    {/* 缩进图标 */}
+                    {record._isChild && <span style={{ color: '#1677ff', fontSize: 12 }}>└</span>}
+                    {/* 任务名称 */}
+                    <div style={{ flex: 1 }}>
+                      {renderTaskNameCell(record)}
+                    </div>
                   </div>
                 );
               }}
