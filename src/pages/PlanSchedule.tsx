@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Card, Button, Table, Modal, Input, InputNumber, DatePicker, Space, Popconfirm, Tag,
-  Typography, Row, Col, message, Upload, Timeline, Empty, Switch, Tooltip, Alert,
+  Typography, Row, Col, message, Upload, Timeline, Empty, Switch, Tooltip, Alert, Select,
 } from 'antd';
 import {
   PlusOutlined, UploadOutlined, LockOutlined, UnlockOutlined,
@@ -969,19 +969,29 @@ const PlanSchedule: React.FC = () => {
         <Row gutter={[12, 8]} align="middle">
           <Col>
             <Space>
-              <Tag color="blue">调试信息</Tag>
-              <span style={{ fontSize: 12 }}>项目ID: {currentProjectId || '无'}</span>
-              <span style={{ fontSize: 12 }}>任务数: {phases.length}</span>
-              <span style={{ fontSize: 12 }}>当前项目任务: {currentProjectId ? getByProject(currentProjectId).length : 0}</span>
+              <Tag color="blue">项目选择</Tag>
+              <Select
+                value={currentProjectId}
+                onChange={(id) => setCurrent(id)}
+                placeholder="选择项目"
+                style={{ width: 200 }}
+                size="small"
+              >
+                {projects.map(p => (
+                  <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
+                ))}
+              </Select>
+              <Tag color={currentProjectId ? 'green' : 'red'}>
+                {currentProjectId ? '已选择' : '未选择'}
+              </Tag>
             </Space>
           </Col>
           <Col>
             <Space>
+              <span style={{ fontSize: 12 }}>总任务数: {phases.length}</span>
+              <span style={{ fontSize: 12 }}>当前项目任务: {currentProjectId ? getByProject(currentProjectId).length : 0}</span>
               <Button size="small" type="primary" onClick={load}>
-                重新加载数据
-              </Button>
-              <Button size="small" onClick={testSave}>
-                测试保存
+                重新加载
               </Button>
               <Button size="small" onClick={() => {
                 const store = usePlanStore.getState();
@@ -993,6 +1003,15 @@ const PlanSchedule: React.FC = () => {
             </Space>
           </Col>
         </Row>
+        {(!currentProjectId || getByProject(currentProjectId).length === 0) && (
+          <Alert
+            type="warning"
+            message="暂无数据显示"
+            description={!currentProjectId ? '请先在上方选择项目' : '当前项目没有任务数据，请点击"创建计划"添加'}
+            showIcon
+            style={{ marginTop: 8 }}
+          />
+        )}
       </Card>
 
       {/* ── 未保存提示 ── */}
