@@ -572,8 +572,15 @@ const PlanSchedule: React.FC = () => {
       );
     }
 
+    // 非编辑模式：显示日期
+    const getTimeColor = () => {
+      if (phase.status === 'completed') return '#8c8c8c';  // 灰色
+      if (phase.status === 'in_progress') return '#1677ff';  // 蓝色
+      return '#8c8c8c';  // 即将开始，灰色
+    };
+    
     return (
-      <Tooltip title={isParentTask ? `父任务时间由子任务自动计算（可手动覆盖）` : `点击编辑${label}日期`}>
+      <Tooltip title={`点击编辑${label}日期`}>
         <div
           onClick={() => {
             if (!isLocked) {
@@ -588,14 +595,11 @@ const PlanSchedule: React.FC = () => {
             cursor: isLocked ? 'not-allowed' : 'pointer', 
             display: 'flex', 
             alignItems: 'center', 
-            gap: 4,
-            backgroundColor: isParentTask ? '#f6ffed' : 'transparent',
-            padding: isParentTask ? '2px 6px' : 0,
-            borderRadius: 4
+            gap: 4
           }}
         >
-          <ClockCircleOutlined style={{ fontSize: 11, color: isParentTask ? '#52c41a' : '#999' }} />
-          <Text style={{ opacity: phase.status === 'completed' ? 0.55 : 1, fontSize: 13 }}>
+          <ClockCircleOutlined style={{ fontSize: 11, color: getTimeColor() }} />
+          <Text style={{ color: getTimeColor(), fontSize: 13 }}>
             {val || '-'}
           </Text>
           <Tooltip title={isLocked ? `解锁${label}日期（允许修改）` : `锁定${label}日期（固定不变）`}>
@@ -606,11 +610,6 @@ const PlanSchedule: React.FC = () => {
               {isLocked ? <LockOutlined style={{ fontSize: 10, color: '#fa8c16' }} /> : <UnlockOutlined style={{ fontSize: 10, color: '#d9d9d9' }} />}
             </span>
           </Tooltip>
-          {isParentTask && (
-            <Tooltip title="自动计算">
-              <span style={{ fontSize: 9, color: '#52c41a', fontWeight: 500 }}>AUTO</span>
-            </Tooltip>
-          )}
         </div>
       </Tooltip>
     );
@@ -692,10 +691,13 @@ const PlanSchedule: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           gap: 6,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
       >
-        {phase.taskName}
-        <EditOutlined style={{ fontSize: 10, color: '#bbb' }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{phase.taskName}</span>
+        <EditOutlined style={{ fontSize: 10, color: '#bbb', flexShrink: 0 }} />
       </div>
     );
   };

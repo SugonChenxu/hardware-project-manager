@@ -24,53 +24,48 @@ function cascadeUpdateDownstream(phases: PlanPhase[], startIndex: number): PlanP
     const prev = result[i - 1];
     const current = result[i];
     
-    // 只处理linked=true的任务
-    if (!current.linked) continue;
+    // 只处理linked=true的任务，遇到linked=false的任务停止级联
+    if (!current.linked) break;
     
-    // 如果当前任务的开始时间早于前一个任务结束时间，则级联更新
-    if (dayjs(current.startDate).isBefore(dayjs(prev.endDate))) {
-      // 如果当前任务是父任务（有子任务），需要特殊处理
-      const hasChildren = result.some(p => p.parentId === current.id);
-      
-      if (hasChildren) {
-        // 父任务：只更新开始时间（结束时间由子任务决定）
-        result[i] = {
-          ...current,
-          startDate: prev.endDate,
-          duration: daysBetween(prev.endDate, current.endDate),
-          status: computeStatusFull(prev.endDate, current.endDate),
-        };
-        
-        // 更新子任务的开始时间
-        result = result.map(p => {
-          if (p.parentId === current.id && !p.lockStart) {
-            return {
-              ...p,
-              startDate: prev.endDate,
-              endDate: fmt(dayjs(prev.endDate).add(p.duration, 'day')),
-              status: computeStatusFull(prev.endDate, fmt(dayjs(prev.endDate).add(p.duration, 'day'))),
-            };
-          }
-          return p;
-        });
-      } else {
-        // 普通任务：同时更新开始和结束时间
-        result[i] = {
-          ...current,
-          startDate: prev.endDate,
-          endDate: fmt(dayjs(prev.endDate).add(current.duration, 'day')),
-          status: computeStatusFull(prev.endDate, fmt(dayjs(prev.endDate).add(current.duration, 'day'))),
-        };
-      }
-      
-      console.log(`📅 级联更新: ${prev.taskName}(${prev.endDate}) → ${current.taskName}(${result[i].startDate})`);
-    } else if (dayjs(current.startDate).isSame(dayjs(prev.endDate))) {
-      // 时间已经连续，不需要更新
+    // 总是更新当前任务的开始时间为前一个任务的结束时间
+    const newStart = prev.endDate;
+    
+    // 如果当前任务开始时间已经等于前一个任务结束时间，无需更新
+    if (dayjs(current.startDate).isSame(dayjs(newStart))) {
       continue;
-    } else {
-      // 当前任务已经开始（时间晚于前一个任务结束），停止级联
-      break;
     }
+    
+    // 更新当前任务
+    if (!current.lockStart) {
+      const newEnd = current.lockEnd ? current.endDate : fmt(dayjs(newStart).add(current.duration, 'day'));
+      result[i] = {
+        ...current,
+        startDate: newStart,
+        endDate: newEnd,
+        duration: daysBetween(newStart, newEnd),
+        status: computeStatusFull(newStart, newEnd),
+      };
+    }
+    
+    // 如果当前任务是父任务（有子任务），更新所有子任务的开始时间
+    const children = result.filter(p => p.parentId === current.id);
+    if (children.length > 0) {
+      result = result.map(p => {
+        if (p.parentId === current.id && !p.lockStart) {
+          const childNewStart = newStart;
+          const childNewEnd = p.lockEnd ? p.endDate : fmt(dayjs(childNewStart).add(p.duration, 'day'));
+          return {
+            ...p,
+            startDate: childNewStart,
+            endDate: childNewEnd,
+            status: computeStatusFull(childNewStart, childNewEnd),
+          };
+        }
+        return p;
+      });
+    }
+    
+    console.log(`🔗 级联更新: ${prev.taskName}(${prev.endDate}) → ${current.taskName}(${result[i].startDate})`);
   }
   
   return result;
