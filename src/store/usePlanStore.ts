@@ -577,10 +577,21 @@ const usePlanStore = create<PlanStore>((set, get) => ({
   },
 }));
 
-// 自动保存：每次 state 变化都写入 IndexedDB（仅当 isDirty=false 时，即已保存的状态）
+// 自动保存：每次 state 变化都写入 IndexedDB（带防抖）
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 usePlanStore.subscribe((state) => {
-  if (state.phases.length > 0 && !state.isDirty) {
-    dbSetPlanPhases(state.phases);
+  if (state.phases.length > 0) {
+    // 防抖：延迟 500ms 保存，避免频繁写入
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+    saveTimeout = setTimeout(() => {
+      dbSetPlanPhases(state.phases).then(() => {
+        console.log('💾 自动保存完成，共', state.phases.length, '个任务');
+      }).catch(e => {
+        console.error('❌ 自动保存失败:', e);
+      });
+    }, 500);
   }
 });
 
