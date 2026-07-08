@@ -11,14 +11,20 @@
             "id": "a855b241c4f703fc",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "PRD-项目计划.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "PRD-项目计划"
+              "title": "新标签页"
+            }
+          },
+          {
+            "id": "aceb7916ceb0496a",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "新标签页"
             }
           }
         ]
@@ -74,7 +80,8 @@
               "title": "书签"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "horizontal",
@@ -185,10 +192,12 @@
   },
   "active": "a855b241c4f703fc",
   "lastOpenFiles": [
-    "PRD-物料管理.md",
-    "PRD-项目计划.md",
-    "PRD-项目计划 1.md",
+    "PRD-项目计划模块.md",
     "未命名.md",
+    "数据持久化开发规范.md",
+    "PRD-项目计划 1.md",
+    "PRD-项目计划.md",
+    "PRD-物料管理.md",
     "PRD-每日待办.md",
     "未命名.base",
     "未命名 1.base"
